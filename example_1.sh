@@ -133,8 +133,8 @@ check_fail "使用clang构建覆盖率版本xgrammar" $run_dir
 docker run --rm xgrammar_cov:latest bash -c "python3 -c 'import xgrammar' 2>&1 > /dev/null && find /workspace/xgrammar/build -name '*.gcda'" | grep -E 'gcda$'
 check_fail "使用clang构建覆盖率版本xgrammar, 实际可以生成覆盖率文件" $run_dir
 
-# 正确的做法是设置一个claude code的hook脚本，但是下面这个简单检查也工作的很好
-# 还可以过滤Dockerfile没改的情况
+# 正确的做法是设置一个claude code的hook脚本，在构建次数超过限制时强制退出
+# 但是下面这个简单检查也工作的很好，还可以过滤Dockerfile等文件都没改动直接重新执行的情况
 if [[ $(docker images | grep -c '<none>\s*<none>') -gt 1 ]]; then
     false; check_fail "docker build构建次数超过限制" $run_dir
 else

@@ -87,7 +87,8 @@ mkdir -p run0
 run_dir=$(realpath run1)
 cd run0
 mkdir -p docker_build
-git clone https://github.com/mlc-ai/xgrammar.git  
+# 锁定代码版本
+git clone https://github.com/mlc-ai/xgrammar.git && cd xgrammar && git checkout d0d7fac906a730d529e29274ba6447685474bf2a && cd -
 
 docker ps -a | grep "Created" | awk '{ print $1}' | xargs docker rm || echo "Clear"
 docker ps -a | grep "Exited" | awk '{ print $1}' | xargs docker rm || echo "Clear"

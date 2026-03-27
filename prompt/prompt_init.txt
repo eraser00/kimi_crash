@@ -1,0 +1,7 @@
+查看xgrammar当中的编译构建设置，在docker_build当中创建一个Dockerfile，并且用这个Dockerfile从ubuntu:22.04构建一个名为xgrammar_dev的docker img。
+
+要求：
+1. 这个Dockerfile需要支持使用clang来完整编译并且编译安装xgrammar;
+2. 在这个docker img当中xgrammar源码安装的路径应该为/workspace/xgrammar;
+
+现在把xgrammar_dev这个docker构建出来

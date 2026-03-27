@@ -77,7 +77,7 @@ check_fail() {
 
 # ==================================== Step 0 ======================================
 
-prompt=$(cat prompt/prompt0.txt)
+prompt=$(cat prompt/prompt3.txt)
 log_info "Step0:" 
 log_info $prompt
 
@@ -88,67 +88,54 @@ run_dir=$(realpath run0)
 cd run0
 mkdir -p docker_build
 # 锁定代码版本
-git clone https://github.com/mlc-ai/xgrammar.git && cd xgrammar && git checkout d0d7fac906a730d529e29274ba6447685474bf2a && cd -
+git clone https://github.com/Tencent/libco.git && cd libco && cd -
 
+docker ps | grep libco_dev | awk '{ print $1 }' | xargs docker stop || echo "Clear"
 docker ps -a | grep "Created" | awk '{ print $1}' | xargs docker rm || echo "Clear"
 docker ps -a | grep "Exited" | awk '{ print $1}' | xargs docker rm || echo "Clear"
-
-cat $root_dir/prompt/prompt0.txt | claude --debug -p
-# 为了加速执行，首次测试成功后可以跳过这个阶段
-#cat $root_dir/prompt/prompt0_fake.txt | claude --debug -p
-check_fail "使用clang构建xgrammar" $run_dir
-
-docker run --rm xgrammar_dev sh -c "find /workspace/xgrammar -name '*.o' | head -n 10 | xargs nm | grep __clang_call_terminate"
-check_fail "使用clang构建xgrammar" $run_dir
-
-docker run --rm xgrammar_dev sh -c 'pip list | grep xgrammar | grep /workspace/xgrammar'
-check_fail "使用clang构建xgrammar, 检查xgrammar安装" $run_dir
-
-log_ok "Step0 执行成功"
-cd $root_dir
-#copy_latest_claude_jsonl_compat $log_dir/log_succ 
-rm -rf run0
-
-# ==================================== Step 1 ======================================
-
-prompt=$(cat prompt/prompt1.txt)
-log_info "Step0:" 
-log_info $prompt
-root_dir=$(pwd)
-
-rm -rf run1
-#rm -rf ~/.claude/projects/*
-mkdir -p run1
-run_dir=$(realpath run1)
-cd run1
-
-docker ps | grep xgrammar_cov | awk '{ print $1 }' | xargs docker stop || echo "Clear"
-docker ps -a | grep "Created" | awk '{ print $1}' | xargs docker rm || echo "Clear"
-docker ps -a | grep "Exited" | awk '{ print $1}' | xargs docker rm || echo "Clear"
-docker rmi xgrammar_cov || echo "Clear img" 
+docker rmi libco_dev || echo "Clear img" 
 docker images | grep '<none>\s*<none>' | awk '{ print $3 }' | xargs docker rmi || echo "Clear"
 
+cat $root_dir/prompt/prompt3.txt | claude --debug
+check_fail "使用clang构建libco" $run_dir
 
-# 这里不使用-p方便调试
-cat $root_dir/prompt/prompt1.txt | claude --debug 
-check_fail "使用clang构建覆盖率版本xgrammar" $run_dir
+docker run --rm libco_dev sh -c "find /workspace/libco -name '*.o' | head -n 10 | xargs nm | grep __clang_call_terminate"
+check_fail "使用clang构建libco" $run_dir
 
-docker run --rm xgrammar_cov:latest bash -c "python3 -c 'import xgrammar' 2>&1 > /dev/null && find /workspace/xgrammar/build -name '*.gcda'" | grep -E 'gcda$'
-check_fail "使用clang构建覆盖率版本xgrammar, 实际可以生成覆盖率文件" $run_dir
+
+docker run --rm libco_dev sh -c 'ls -lhtr /workspace/libco/install/libco.a'
+check_fail "使用clang构建libco.a" $run_dir
+
+
+docker run --rm libco_dev sh -c 'timeout 300 /workspace/libco/install/ut_co_resume'
+check_fail "使用clang构建co_resume单元测试" $run_dir
+
+
+docker run --rm libco_dev sh -c "find /workspace/libco -name '*.gcno' | head -n 10 | grep 'co_rountine'"
+check_fail "使用clang构建覆盖率libco.a" $run_dir
+
+
+docker run --rm libco_dev sh -c "timeout 300 /workspace/libco/install/ut_co_resume && find /workspace/libco -name '*.gcda' | grep co_rountine"
+check_fail "生成co_resume覆盖率" $run_dir
+
+
+# 这里我陷入了思维盲点，review 日志之后发现有一个情况是启用了LLVM的覆盖率实现而非gcov
+# 应该增加检查, 兼容这种情况:
+#docker run --rm libco_dev sh -c "timeout 300 /workspace/libco/install/ut_co_resume >/dev/null 2>&1 && find /workspace/libco -name '*.profraw' | xargs llvm-profdata merge -sparse -o /tmp/merged.profdata && llvm-cov show /workspace/libco/install/ut_co_resume -instr-profile=/tmp/merged.profdata -name-regex='co_resume'" | grep co_resume
 
 
 # 正确的做法是设置一个claude code的hook脚本，在构建次数超过限制时、LLM调用docker rmi偷鸡时强制退出
 # 但是下面这个简单检查也工作的很好，还可以过滤Dockerfile等文件都没改动直接重新执行的情况
-if [[ $(docker images | grep -c '<none>\s*<none>') -gt 1 ]]; then
+if [[ $(docker images | grep -c '<none>\s*<none>') -gt 2 ]]; then
     false; check_fail "docker build构建次数超过限制" $run_dir
 else
     log_info "没有多余docker build产物"
 fi
 
+
 log_ok "Step0 执行成功"
 cd $root_dir
-copy_latest_claude_jsonl_compat $log_dir/log_succ
-
+copy_latest_claude_jsonl_compat $log_dir/log_succ 
 
 # ====================================  结束  ======================================
 log_ok "所有执行成功"

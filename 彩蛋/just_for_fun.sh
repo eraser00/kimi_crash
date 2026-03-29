@@ -1,0 +1,107 @@
+#!/bin/bash
+
+export ANTHROPIC_BASE_URL=https://api.kimi.com/coding/
+export ANTHROPIC_API_KEY=${YOUR_KIMI_API_KEY}
+
+cp claude_conf/settings.json ~/.claude/settings.json
+
+color_msg() {
+    local color=$1
+    shift  # 移除第一个参数，剩余全是消息内容
+    local msg="$*"  # 将所有剩余参数合并为一条消息
+    
+    local code
+    case $color in
+        black)   code=30 ;;
+        red)     code=31 ;;
+        green)   code=32 ;;
+        yellow)  code=33 ;;
+        blue)    code=34 ;;
+        magenta) code=35 ;;
+        cyan)    code=36 ;;
+        white)   code=37 ;;
+        *)       code=37 ;;
+    esac
+    
+    printf "\033[0;%dm%s\033[0m\n" "$code" "$msg"
+}
+
+# 快捷函数（修复：使用 "$@" 传递所有参数）
+msg_red()    { color_msg red "$@"; }
+msg_green()  { color_msg green "$@"; }
+msg_yellow() { color_msg yellow "$@"; }
+msg_blue()   { color_msg blue "$@"; }
+msg_cyan()   { color_msg cyan "$@"; }
+
+# 日志函数（修复）
+log_info()  { color_msg cyan "[INFO] $*"; }
+log_warn()  { color_msg yellow "[WARN] $*"; }
+log_error() { color_msg red "[ERROR] $*"; }
+log_ok()    { color_msg green "[OK] $*"; }
+
+mvts() {
+    [[ -d "$1" ]] || { echo "Usage: mvts <folder>"; return 1; }
+    mv "$1" "$1_$(date +%Y%m%d_%H%M%S)"
+}
+
+copy_latest_claude_jsonl_compat() {
+    local dest_dir="$1"
+    local src_dir="$HOME/.claude/projects"
+    
+    # 使用 ls -t 排序（次优，但兼容性好）
+    local latest_file
+    latest_file=$(ls -t "$src_dir"/*/*.jsonl 2>/dev/null | head -1)
+    
+    [ -z "$latest_file" ] && { echo "No jsonl files found"; return 1; }
+    
+    cp "$latest_file" "$dest_dir/"
+    echo "Copied: $latest_file"
+}
+
+root_dir=$(pwd)
+log_dir="$HOME/log_kimi_crash"
+mkdir -p $log_dir/log_succ
+mkdir -p $log_dir/log_fail
+
+check_fail() {
+   if [[ $? -ne 0 ]]; then
+     log_error "执行失败"
+     log_error "失败检查项:" $1
+     copy_latest_claude_jsonl_compat $log_dir/log_fail      
+     cp -rf $2 $log_dir/log_fail
+     mvts $log_dir/log_succ
+     mvts $log_dir/log_fail
+     exit 1
+   fi
+}
+
+# ==================================== Step 0 ======================================
+
+prompt=$(cat prompt/prompt5.txt)
+log_info "Step0:" 
+log_info $prompt
+
+rm -rf run0
+#rm -rf ~/.claude/projects/*
+mkdir -p run0
+run_dir=$(realpath run0)
+cp *.jsonl run0
+cd run0
+
+rm -rf ./Dockerfile*
+echo "查看当前目录下面的a132111b-6533-412e-bf46-5bec0701c2f3.jsonl，不要写任何代码把其中最后一次生成的Dockerfile内容输出当前目录的Dockerfile.bak" | claude
+
+ls Dockerfile.bak
+check_fail "生成正确的Dockerfile.bak" "$run_dir"
+diff ../HAHA Dockerfile.bak
+check_fail "生成正确的Dockerfile.bak" "$run_dir"
+ 
+log_ok "Step0 执行成功"
+cd $root_dir
+copy_latest_claude_jsonl_compat $log_dir/log_succ 
+
+# ====================================  结束  ======================================
+log_ok "所有执行成功"
+mvts $log_dir/log_succ
+mvts $log_dir/log_fail
+exit 0

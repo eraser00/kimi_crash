@@ -1,0 +1,51 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    clang llvm cmake make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symlinks for llvm tools to unversioned names
+RUN for ver in 14 15 16 17 18; do \
+        if [ -x /usr/bin/llvm-profdata-${ver} ]; then \
+            ln -sf /usr/bin/llvm-profdata-${ver} /usr/local/bin/llvm-profdata; \
+            ln -sf /usr/bin/llvm-cov-${ver} /usr/local/bin/llvm-cov; \
+            break; \
+        fi; \
+    done
+
+WORKDIR /workspace/libco
+
+# Copy libco source into the image
+COPY libco/ /workspace/libco/
+
+ENV CC=clang
+ENV CXX=clang++
+ENV COV_CFLAGS="-fprofile-instr-generate -fcoverage-mapping"
+ENV COV_LDFLAGS="-fprofile-instr-generate"
+
+# Build static library libcolib.a with coverage instrumentation.
+# CFLAGS on the command line overrides co.mk and Makefile appends to it.
+RUN make -j$(nproc) clean || true && \
+    make -j$(nproc) libcolib.a \
+        CFLAGS="${COV_CFLAGS} -g -I. -fPIC -DLINUX -pipe -c -fno-inline -fno-strict-aliasing -O2 -Wall -export-dynamic -D_GNU_SOURCE -D_REENTRANT -Wno-deprecated -m64" \
+        CC=clang CXX=clang++
+
+# Create install directory and place the static library as required
+RUN mkdir -p /workspace/libco/install && \
+    cp /workspace/libco/lib/libcolib.a /workspace/libco/install/libco.a
+
+# Build the unit test executable
+RUN clang++ ${COV_CFLAGS} ${COV_LDFLAGS} -g -O2 -Wall -pipe -D_GNU_SOURCE -D_REENTRANT -m64 \
+    -I/workspace/libco \
+    /workspace/libco/ut_co_resume.cpp \
+    /workspace/libco/install/libco.a \
+    -lpthread -ldl \
+    -o /workspace/libco/install/ut_co_resume
+
+# Run the unit test to generate raw coverage data and produce the coverage report
+RUN cd /workspace/libco && \
+    LLVM_PROFILE_FILE="default.profraw" /workspace/libco/install/ut_co_resume && \
+    llvm-profdata merge -sparse default.profraw -o default.profdata && \
+    llvm-cov report /workspace/libco/install/ut_co_resume -instr-profile=default.profdata > /workspace/libco/install/ut_co_resume.cov.txt && \
+    cat /workspace/libco/install/ut_co_resume.cov.txt

@@ -1,0 +1,4 @@
+你有一个名为xgrammar_dev的docker img，里面通过编译安装了一份放在/workspace/xgrammar下面的源代码。
+现在修改其中/workspace/xgrammar当中的构建设置，构建一个新的docker img: xgrammar_cov，其中安装了一个带测试覆盖率版本的xgrammar
+要求这个docker img执行`pytest /workspace/xgrammar/tests/python/test_grammar_compiler.py`之后可以生成对应的覆盖率文件
+这个过程当中，你最多可以调用docker build构建一次新的img

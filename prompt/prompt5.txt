@@ -1,0 +1,14 @@
+查看libco当中的编译构建设置，在docker_build当中创建一个Dockerfile，并且用这个Dockerfile从ubuntu:22.04构建一个名为libco_dev的docker img。
+
+要求：
+1. 这个Dockerfile需要支持使用clang来完整编译一个覆盖率版本的libco;
+2. 在这个docker img当中libco源码编译路径应该为/workspace/libco;
+3. 在这个docker img当中libco源码产出的路径应该为/workspace/libco/install/libco.a;
+4. 使用编译出来的/workspace/libco/install/libco.a，为项目的核心函数co_resume、co_create编写一个可正常执行的带覆盖的单元测试;
+5. co_resume的单元测试应该命名并且放置在/workspace/libco/install/ut_co_resume;
+6. ut_co_resume的代码应该命名并且放置在/worksapce/libco/ut_co_resume.cpp当中;
+7. /worksapce/libco/ut_co_resume.cpp中需要包括co_routine当中创建新的co_rountine的测试;
+8. 最终的dockere img需要支持生成/worksapce/libco/ut_co_resume.cpp的单元测试覆盖报告/workspace/libco/install/ut_co_resume.cov.txt
+
+这个过程当中，你最多可以调用docker build构建三次新的img
+现在把libco_dev这个docker构建出来
